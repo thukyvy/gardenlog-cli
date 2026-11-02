@@ -60,6 +60,24 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
     return 0
 
 
+def cmd_due(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    due_plants = [p for p in data["plants"] if store.is_due(p, today)]
+    if not due_plants:
+        print(f"Nothing due as of {today.isoformat()}. All plants are watered.")
+        return 0
+    due_plants.sort(key=lambda p: store.days_overdue(p, today), reverse=True)
+    print(f"Plants needing water as of {today.isoformat()}:")
+    for plant in due_plants:
+        overdue = store.days_overdue(plant, today)
+        when = "due today" if overdue == 0 else f"{overdue} day(s) overdue"
+        print(
+            f"- {plant['name']}: last watered {store.last_watered(plant).isoformat()}, "
+            f"was due {store.next_due(plant).isoformat()} ({when})"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gardenlog",
@@ -86,6 +104,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="list all tracked plants")
     p_list.set_defaults(func=cmd_list)
+
+    p_due = sub.add_parser("due", help="show plants due or overdue for watering")
+    p_due.set_defaults(func=cmd_due)
 
     return parser
 
