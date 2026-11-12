@@ -127,6 +127,12 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
 
 
 def cmd_due(args: argparse.Namespace, today: date) -> int:
+    forecast = None
+    if args.forecast:
+        try:
+            forecast = store.load_forecast(Path(args.forecast).expanduser())
+        except (OSError, ValueError) as exc:
+            return _err(f"could not read forecast file '{args.forecast}': {exc}")
     data = store.load_data()
     plants = _filter_zone(data["plants"], args.zone)
     due_plants = [p for p in plants if store.is_due(p, today)]
@@ -143,10 +149,20 @@ def cmd_due(args: argparse.Namespace, today: date) -> int:
         for plant in due_plants:
             overdue = store.days_overdue(plant, today)
             when = "due today" if overdue == 0 else f"{overdue} day(s) overdue"
-            print(
+            line = (
                 f"- {plant['name']}: last watered {store.last_watered(plant).isoformat()}, "
                 f"was due {store.next_due(plant).isoformat()} ({when})"
             )
+            if forecast is not None and store.rain_expected(forecast, today):
+                dry = store.next_dry_day(forecast, today)
+                if dry is not None:
+                    line += (
+                        f" (rain expected today — consider delaying "
+                        f"to {dry.isoformat()} if outdoors)"
+                    )
+                else:
+                    line += " (rain expected today — no dry day in the next 7 days)"
+            print(line)
     if feed_plants:
         feed_plants.sort(
             key=lambda p: store.feed_days_overdue(p, today), reverse=True
@@ -453,6 +469,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="ZONE",
         help="only show plants in this zone",
+    )
+    p_due.add_argument(
+        "--forecast",
+        default=None,
+        metavar="PATH",
+        help="JSON rain-forecast file; due waterings expecting rain are flagged",
     )
     p_due.set_defaults(func=cmd_due)
 

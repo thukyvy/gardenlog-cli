@@ -184,3 +184,38 @@ def feed_days_overdue(plant: dict, today: date) -> int | None:
 def is_feed_due(plant: dict, today: date) -> bool:
     overdue = feed_days_overdue(plant, today)
     return overdue is not None and overdue >= 0
+
+
+def load_forecast(path: Path) -> dict:
+    """Load a rain forecast JSON file keyed by ISO date:
+
+        {"2026-11-13": {"rain": true}, "2026-11-14": {"rain_chance": 80}}
+
+    GardenLog never fetches weather itself — the file is supplied by the
+    user (or their own script), keeping the tool offline by default.
+    """
+    with path.open("r", encoding="utf-8") as fh:
+        raw = json.load(fh)
+    if not isinstance(raw, dict):
+        raise ValueError("forecast file must be a JSON object keyed by date")
+    return raw
+
+
+def rain_expected(forecast: dict, day: date) -> bool:
+    """True when the forecast marks `day` rainy ("rain" or >= 50% chance)."""
+    entry = forecast.get(day.isoformat())
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("rain"):
+        return True
+    chance = entry.get("rain_chance")
+    return chance is not None and int(chance) >= 50
+
+
+def next_dry_day(forecast: dict, start: date, max_days: int = 7) -> date | None:
+    """First day after `start` with no rain expected (None if all rainy)."""
+    for offset in range(1, max_days + 1):
+        candidate = start + timedelta(days=offset)
+        if not rain_expected(forecast, candidate):
+            return candidate
+    return None
