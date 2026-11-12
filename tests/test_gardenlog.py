@@ -59,6 +59,18 @@ class TestScheduleLogic(GardenLogTestCase):
         plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
         self.assertEqual(store.days_overdue(plant, TODAY), 6)
 
+    def test_new_plant_has_empty_note_and_old_data_without_note_is_fine(self):
+        plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
+        self.assertEqual(store.plant_note(plant), "")
+        legacy = {
+            "name": "Old",
+            "species": "",
+            "planted": "2026-10-01",
+            "interval_days": 7,
+            "waterings": [],
+        }
+        self.assertEqual(store.plant_note(legacy), "")
+
     def test_watering_moves_due_date(self):
         plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
         plant["waterings"].append("2026-10-30")
@@ -135,6 +147,36 @@ class TestCommands(GardenLogTestCase):
         self.assertIn("Plants tracked: 2", out)
         self.assertIn("Waterings logged: 1", out)
         self.assertIn("Most overdue: Fern (6 day(s) past due)", out)
+
+    def test_note_set_show_list_and_clear(self):
+        self.add_fern()
+        code, out, _ = self.run_cli(["note", "Fern"])
+        self.assertEqual(code, 0)
+        self.assertIn("has no note", out)
+        code, out, _ = self.run_cli(["note", "Fern", "moved to the balcony"])
+        self.assertEqual(code, 0)
+        self.assertIn("Note saved for Fern: moved to the balcony", out)
+        code, out, _ = self.run_cli(["note", "Fern"])
+        self.assertEqual(code, 0)
+        self.assertIn("Fern note: moved to the balcony", out)
+        code, out, _ = self.run_cli(["list"])
+        self.assertEqual(code, 0)
+        self.assertIn("note: moved to the balcony", out)
+        code, out, _ = self.run_cli(["note", "Fern", "--clear"])
+        self.assertEqual(code, 0)
+        plant = store.find_plant(store.load_data(), "Fern")
+        self.assertEqual(store.plant_note(plant), "")
+
+    def test_note_unknown_plant_is_friendly_error(self):
+        code, _, err = self.run_cli(["note", "Ghost", "boo"])
+        self.assertEqual(code, 1)
+        self.assertIn("no plant named 'Ghost'", err)
+
+    def test_note_rejects_blank_text(self):
+        self.add_fern()
+        code, _, err = self.run_cli(["note", "Fern", "   "])
+        self.assertEqual(code, 1)
+        self.assertIn("--clear", err)
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
