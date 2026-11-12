@@ -6,6 +6,7 @@ $GARDENLOG_DATA at a fresh temporary file.
 
 import csv
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -103,6 +104,33 @@ class TestScheduleLogic(GardenLogTestCase):
         self.assertEqual(store.plant_zone(plain), "")
         legacy = {"name": "Old", "planted": "2026-10-01", "waterings": []}
         self.assertEqual(store.plant_zone(legacy), "")
+
+    def test_rain_expected_uses_flag_or_chance_threshold(self):
+        forecast = {
+            "2026-11-02": {"rain": True},
+            "2026-11-03": {"rain_chance": 80},
+            "2026-11-04": {"rain_chance": 30},
+            "2026-11-05": {"rain": False},
+        }
+        self.assertTrue(store.rain_expected(forecast, date(2026, 11, 2)))
+        self.assertTrue(store.rain_expected(forecast, date(2026, 11, 3)))
+        self.assertFalse(store.rain_expected(forecast, date(2026, 11, 4)))
+        self.assertFalse(store.rain_expected(forecast, date(2026, 11, 5)))
+        self.assertFalse(store.rain_expected(forecast, date(2026, 11, 6)))
+
+    def test_next_dry_day_skips_rainy_days(self):
+        forecast = {
+            "2026-11-02": {"rain": True},
+            "2026-11-03": {"rain": True},
+            "2026-11-04": {"rain": True},
+        }
+        self.assertEqual(
+            store.next_dry_day(forecast, date(2026, 11, 2)), date(2026, 11, 5)
+        )
+        all_rainy = {
+            f"2026-11-{day:02d}": {"rain": True} for day in range(2, 12)
+        }
+        self.assertIsNone(store.next_dry_day(all_rainy, date(2026, 11, 2)))
 
     def test_watering_moves_due_date(self):
         plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
@@ -389,6 +417,31 @@ class TestCommands(GardenLogTestCase):
         self.assertIn("succulent: water every 14 day(s), feed every 60 day(s)", out)
         self.assertIn("fern: water every 3 day(s), feed every 30 day(s)", out)
         self.assertIn("herb: water every 2 day(s), feed every 14 day(s)", out)
+
+    def test_due_flags_rain_from_forecast_file(self):
+        self.add_fern()
+        forecast_file = Path(self._tmp.name) / "forecast.json"
+        forecast_file.write_text(
+            json.dumps(
+                {
+                    TODAY.isoformat(): {"rain": True},
+                    "2026-11-03": {"rain_chance": 10},
+                }
+            ),
+            encoding="utf-8",
+        )
+        code, out, _ = self.run_cli(["due", "--forecast", str(forecast_file)])
+        self.assertEqual(code, 0)
+        self.assertIn("rain expected today", out)
+        self.assertIn("2026-11-03", out)  # suggested first dry day
+        code, out, _ = self.run_cli(["due"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("rain expected", out)
+
+    def test_due_forecast_missing_file_is_friendly_error(self):
+        code, _, err = self.run_cli(["due", "--forecast", "/nope/forecast.json"])
+        self.assertEqual(code, 1)
+        self.assertIn("could not read forecast file", err)
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
