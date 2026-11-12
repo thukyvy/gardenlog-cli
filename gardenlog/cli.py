@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import sys
 from datetime import date
+from pathlib import Path
 
 from . import store
 
@@ -127,6 +130,58 @@ def cmd_note(args: argparse.Namespace, today: date) -> int:
     return 0
 
 
+EXPORT_FIELDS = [
+    "name",
+    "species",
+    "planted",
+    "interval_days",
+    "note",
+    "waterings_count",
+    "last_watered",
+    "next_due",
+    "waterings",
+]
+
+
+def _export_rows(data: dict) -> list[dict]:
+    rows = []
+    for plant in sorted(data["plants"], key=lambda p: p["name"].lower()):
+        rows.append(
+            {
+                "name": plant["name"],
+                "species": plant["species"],
+                "planted": plant["planted"],
+                "interval_days": plant["interval_days"],
+                "note": store.plant_note(plant),
+                "waterings_count": len(plant["waterings"]),
+                "last_watered": store.last_watered(plant).isoformat(),
+                "next_due": store.next_due(plant).isoformat(),
+                "waterings": ";".join(sorted(plant["waterings"])),
+            }
+        )
+    return rows
+
+
+def cmd_export(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    rows = _export_rows(data)
+    if args.output:
+        path = Path(args.output).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8", newline="") as fh:
+            writer = csv.DictWriter(fh, fieldnames=EXPORT_FIELDS)
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"Exported {len(rows)} plant(s) to {path}.")
+        return 0
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=EXPORT_FIELDS)
+    writer.writeheader()
+    writer.writerows(rows)
+    sys.stdout.write(buffer.getvalue())
+    return 0
+
+
 def cmd_remove(args: argparse.Namespace, today: date) -> int:
     data = store.load_data()
     plant = store.find_plant(data, args.name)
@@ -207,6 +262,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="remove the plant's note",
     )
     p_note.set_defaults(func=cmd_note)
+
+    p_export = sub.add_parser(
+        "export", help="export plants and watering history as CSV"
+    )
+    p_export.add_argument(
+        "--output",
+        "-o",
+        metavar="PATH",
+        default=None,
+        help="write the CSV to this file (default: standard output)",
+    )
+    p_export.set_defaults(func=cmd_export)
 
     p_remove = sub.add_parser("remove", help="stop tracking a plant")
     p_remove.add_argument("name", help="name of the plant to remove")
