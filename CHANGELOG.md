@@ -8,6 +8,11 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Fertiliser schedules — feeding tracked separately from watering, with its
+  own interval per plant: opt in with `gardenlog add --feed-interval DAYS`
+  or later via `gardenlog schedule-feed <name> --every DAYS` (`--off`
+  disables it), record feedings with `gardenlog feed`, and see due feedings
+  in `gardenlog due`, `gardenlog stats` and the CSV export.
 - `gardenlog export` — plants and watering history as CSV (header row plus
   one row per plant: identity, interval, note, watering count, last/next
   dates, and the full watering history joined by `;`). Writes to standard

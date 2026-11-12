@@ -5,18 +5,16 @@ roughly in the order they are likely to land — not promises with dates.
 
 ## Next
 
-- **Fertiliser schedule** — track feeding separately from watering, with its
-  own interval per plant and entries in `due`.
+- **Zones** — group plants by location (balcony, kitchen, greenhouse) and
+  filter `list` / `due` by zone.
+- **Care profiles** — reusable presets ("succulent", "fern", "herb") that set
+  sensible default intervals when adding a plant.
 
 ## Later
 
 - **Weather-aware reminders** — optionally skip or delay a due watering when
   rain is forecast for outdoor plants (requires an opt-in weather source;
   GardenLog stays offline by default).
-- **Zones** — group plants by location (balcony, kitchen, greenhouse) and
-  filter `list` / `due` by zone.
-- **Care profiles** — reusable presets ("succulent", "fern", "herb") that set
-  sensible default intervals when adding a plant.
 
 ## Principles
 

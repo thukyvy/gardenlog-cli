@@ -72,6 +72,22 @@ Backfill a watering you forgot to log with `--date`:
 $ gardenlog water Basil --date 2026-10-31
 ```
 
+### Feed on its own schedule
+
+Feeding is tracked separately from watering, with its own interval:
+
+```
+$ gardenlog add Fern --planted 2026-10-20 --feed-interval 30
+Added Fern: planted 2026-10-20, water every 7 day(s), first due 2026-10-27. Feed every 30 day(s), first feed due 2026-11-19.
+
+$ gardenlog feed Fern
+Fed Fern on 2026-11-12. Next feed due 2026-12-12.
+```
+
+Plants that already exist get a schedule with
+`gardenlog schedule-feed <name> --every 30` (and `--off` removes it).
+Due feedings show up in `gardenlog due` next to due waterings.
+
 ### Keep a note on a plant
 
 ```
@@ -123,7 +139,10 @@ human-readable JSON, so you can inspect or back it up with any tool:
       "species": "Monstera deliciosa",
       "planted": "2026-10-24",
       "interval_days": 7,
-      "waterings": ["2026-10-31"]
+      "waterings": ["2026-10-31"],
+      "note": "",
+      "feed_interval_days": null,
+      "feedings": []
     }
   ]
 }
