@@ -237,7 +237,7 @@ class TestCommands(GardenLogTestCase):
         self.assertEqual(code, 0)
         self.assertIn("Exported 1 plant(s)", out)
         text = target.read_text(encoding="utf-8")
-        self.assertIn("name,species,zone,planted", text)
+        self.assertIn("name,species,zone,profile,planted", text)
         self.assertIn("Fern", text)
 
     def test_export_empty_garden_emits_header_only(self):
@@ -356,6 +356,39 @@ class TestCommands(GardenLogTestCase):
         rows = list(csv.reader(io.StringIO(out)))
         row = dict(zip(rows[0], rows[1]))
         self.assertEqual(row["zone"], "balcony")
+
+    def test_profile_defaults_apply(self):
+        code, out, _ = self.run_cli(
+            ["add", "Fern", "--planted", "2026-10-20", "--profile", "fern"]
+        )
+        self.assertEqual(code, 0)
+        self.assertIn("Care profile: fern", out)
+        plant = store.find_plant(store.load_data(), "Fern")
+        self.assertEqual(plant["interval_days"], 3)
+        self.assertEqual(plant["feed_interval_days"], 30)
+        self.assertEqual(store.profile_of(plant), "fern")
+
+    def test_profile_explicit_flags_win(self):
+        code, _, _ = self.run_cli(
+            ["add", "Fern", "--profile", "fern", "--interval", "5"]
+        )
+        self.assertEqual(code, 0)
+        plant = store.find_plant(store.load_data(), "Fern")
+        self.assertEqual(plant["interval_days"], 5)
+        self.assertEqual(plant["feed_interval_days"], 30)
+
+    def test_unknown_profile_is_friendly_error(self):
+        code, _, err = self.run_cli(["add", "Fern", "--profile", "bogus"])
+        self.assertEqual(code, 1)
+        self.assertIn("unknown care profile 'bogus'", err)
+        self.assertIn("succulent", err)
+
+    def test_profiles_command_lists_presets(self):
+        code, out, _ = self.run_cli(["profiles"])
+        self.assertEqual(code, 0)
+        self.assertIn("succulent: water every 14 day(s), feed every 60 day(s)", out)
+        self.assertIn("fern: water every 3 day(s), feed every 30 day(s)", out)
+        self.assertIn("herb: water every 2 day(s), feed every 14 day(s)", out)
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
