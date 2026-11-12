@@ -72,6 +72,30 @@ class TestScheduleLogic(GardenLogTestCase):
         }
         self.assertEqual(store.plant_note(legacy), "")
 
+    def test_feed_schedule_counts_from_planted_until_first_feeding(self):
+        plant = store.make_plant("Fern", "", date(2026, 10, 20), 7, 14)
+        self.assertEqual(store.next_feed_due(plant), date(2026, 11, 3))
+        self.assertFalse(store.is_feed_due(plant, date(2026, 11, 2)))
+        self.assertTrue(store.is_feed_due(plant, date(2026, 11, 3)))
+        plant["feedings"].append("2026-11-01")
+        self.assertEqual(store.last_fed(plant), date(2026, 11, 1))
+        self.assertEqual(store.next_feed_due(plant), date(2026, 11, 15))
+
+    def test_no_feed_interval_means_feeding_not_tracked(self):
+        plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
+        self.assertIsNone(store.feed_interval(plant))
+        self.assertIsNone(store.next_feed_due(plant))
+        self.assertFalse(store.is_feed_due(plant, TODAY))
+        legacy = {
+            "name": "Old",
+            "species": "",
+            "planted": "2026-10-01",
+            "interval_days": 7,
+            "waterings": [],
+        }
+        self.assertIsNone(store.feed_interval(legacy))
+        self.assertEqual(store.feedings_of(legacy), [])
+
     def test_watering_moves_due_date(self):
         plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
         plant["waterings"].append("2026-10-30")
@@ -213,6 +237,71 @@ class TestCommands(GardenLogTestCase):
         self.assertEqual(code, 0)
         rows = list(csv.reader(io.StringIO(out)))
         self.assertEqual(rows, [cli.EXPORT_FIELDS])
+
+    def test_feed_requires_a_schedule(self):
+        self.add_fern()
+        code, _, err = self.run_cli(["feed", "Fern"])
+        self.assertEqual(code, 1)
+        self.assertIn("no fertiliser schedule", err)
+
+    def test_feed_records_and_clears_feed_due(self):
+        self.run_cli(
+            ["add", "Fern", "--planted", "2026-10-20", "--feed-interval", "10"]
+        )
+        code, out, _ = self.run_cli(["due"])
+        self.assertEqual(code, 0)
+        self.assertIn("needing fertiliser", out)
+        self.assertIn("3 day(s) overdue", out)
+        code, out, _ = self.run_cli(["feed", "Fern"])  # feeds on TODAY
+        self.assertEqual(code, 0)
+        self.assertIn("Next feed due 2026-11-12", out)
+        code, out, _ = self.run_cli(["due"])
+        self.assertEqual(code, 0)
+        self.assertNotIn("fertiliser", out)
+
+    def test_schedule_feed_set_show_and_off(self):
+        self.add_fern()
+        code, out, _ = self.run_cli(["schedule-feed", "Fern", "--every", "30"])
+        self.assertEqual(code, 0)
+        self.assertIn("every 30 day(s)", out)
+        self.assertIn("2026-11-19", out)  # planted 2026-10-20 + 30 days
+        code, out, _ = self.run_cli(["schedule-feed", "Fern"])
+        self.assertEqual(code, 0)
+        self.assertIn("feed every 30 day(s)", out)
+        code, out, _ = self.run_cli(["schedule-feed", "Fern", "--off"])
+        self.assertEqual(code, 0)
+        code, _, err = self.run_cli(["feed", "Fern"])
+        self.assertEqual(code, 1)
+        self.assertIn("no fertiliser schedule", err)
+
+    def test_add_rejects_zero_feed_interval(self):
+        code, _, err = self.run_cli(["add", "Ivy", "--feed-interval", "0"])
+        self.assertEqual(code, 1)
+        self.assertIn("at least 1 day", err)
+
+    def test_stats_counts_feedings(self):
+        self.run_cli(
+            ["add", "Fern", "--planted", "2026-10-20", "--feed-interval", "10"]
+        )
+        self.run_cli(["feed", "Fern", "--date", "2026-10-28"])
+        code, out, _ = self.run_cli(["stats"])
+        self.assertEqual(code, 0)
+        self.assertIn("Feedings logged: 1", out)
+
+    def test_export_includes_feeding_columns(self):
+        self.run_cli(
+            ["add", "Fern", "--planted", "2026-10-20", "--feed-interval", "14"]
+        )
+        self.run_cli(["feed", "Fern", "--date", "2026-10-28"])
+        code, out, _ = self.run_cli(["export"])
+        self.assertEqual(code, 0)
+        rows = list(csv.reader(io.StringIO(out)))
+        row = dict(zip(rows[0], rows[1]))
+        self.assertEqual(row["feed_interval_days"], "14")
+        self.assertEqual(row["feedings_count"], "1")
+        self.assertEqual(row["last_fed"], "2026-10-28")
+        self.assertEqual(row["next_feed_due"], "2026-11-11")
+        self.assertEqual(row["feedings"], "2026-10-28")
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
