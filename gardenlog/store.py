@@ -10,7 +10,11 @@ Data lives in a single JSON document:
           "planted": "2026-10-01",
           "interval_days": 7,
           "waterings": ["2026-10-03", "2026-10-10"],
-          "note": "moved to the balcony"
+          "note": "moved to the balcony",
+          "feed_interval_days": 30,
+          "feedings": [],
+          "zone": "balcony",
+          "profile": ""
         }
       ]
     }
@@ -77,6 +81,7 @@ def make_plant(
     interval_days: int,
     feed_interval_days: int | None = None,
     zone: str = "",
+    profile: str = "",
 ) -> dict:
     return {
         "name": name,
@@ -88,12 +93,27 @@ def make_plant(
         "feed_interval_days": feed_interval_days,
         "feedings": [],
         "zone": zone or "",
+        "profile": profile or "",
     }
 
 
 def plant_zone(plant: dict) -> str:
     """The plant's zone ('' when unset or from an older data file)."""
     return plant.get("zone", "") or ""
+
+
+# Care profiles: reusable starting intervals for common plant kinds.
+# These are defaults only — every value can be overridden per plant.
+PROFILES: dict[str, dict[str, int]] = {
+    "succulent": {"interval_days": 14, "feed_interval_days": 60},
+    "fern": {"interval_days": 3, "feed_interval_days": 30},
+    "herb": {"interval_days": 2, "feed_interval_days": 14},
+}
+
+
+def profile_of(plant: dict) -> str:
+    """The care profile the plant was started from ('' when none)."""
+    return plant.get("profile", "") or ""
 
 
 def plant_note(plant: dict) -> str:

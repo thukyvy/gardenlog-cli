@@ -22,9 +22,25 @@ def _parse_day(value: str | None, today: date) -> date:
 
 
 def cmd_add(args: argparse.Namespace, today: date) -> int:
-    if args.interval < 1:
+    profile = None
+    profile_name = ""
+    if args.profile:
+        profile_name = args.profile.lower()
+        profile = store.PROFILES.get(profile_name)
+        if profile is None:
+            available = ", ".join(sorted(store.PROFILES))
+            return _err(
+                f"unknown care profile '{args.profile}' — available: {available}"
+            )
+    interval = args.interval
+    if interval is None:
+        interval = profile["interval_days"] if profile else 7
+    feed_interval = args.feed_interval
+    if feed_interval is None and profile:
+        feed_interval = profile["feed_interval_days"]
+    if interval < 1:
         return _err("watering interval must be at least 1 day")
-    if args.feed_interval is not None and args.feed_interval < 1:
+    if feed_interval is not None and feed_interval < 1:
         return _err("fertiliser interval must be at least 1 day")
     data = store.load_data()
     if store.find_plant(data, args.name):
@@ -34,9 +50,10 @@ def cmd_add(args: argparse.Namespace, today: date) -> int:
         args.name,
         args.species,
         planted,
-        args.interval,
-        args.feed_interval,
+        interval,
+        feed_interval,
         args.zone.strip(),
+        profile_name,
     )
     data["plants"].append(plant)
     store.save_data(data)
@@ -53,7 +70,20 @@ def cmd_add(args: argparse.Namespace, today: date) -> int:
         )
     if store.plant_zone(plant):
         message += f" Zone: {store.plant_zone(plant)}."
+    if store.profile_of(plant):
+        message += f" Care profile: {store.profile_of(plant)}."
     print(message)
+    return 0
+
+
+def cmd_profiles(args: argparse.Namespace, today: date) -> int:
+    print("Available care profiles (starting defaults, all overridable):")
+    for name in sorted(store.PROFILES):
+        profile = store.PROFILES[name]
+        print(
+            f"- {name}: water every {profile['interval_days']} day(s), "
+            f"feed every {profile['feed_interval_days']} day(s)"
+        )
     return 0
 
 
@@ -238,6 +268,7 @@ EXPORT_FIELDS = [
     "name",
     "species",
     "zone",
+    "profile",
     "planted",
     "interval_days",
     "note",
@@ -264,6 +295,7 @@ def _export_rows(data: dict) -> list[dict]:
                 "name": plant["name"],
                 "species": plant["species"],
                 "zone": store.plant_zone(plant),
+                "profile": store.profile_of(plant),
                 "planted": plant["planted"],
                 "interval_days": plant["interval_days"],
                 "note": store.plant_note(plant),
@@ -381,9 +413,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.add_argument(
         "--interval",
         type=int,
-        default=7,
+        default=None,
         metavar="DAYS",
-        help="watering interval in days (default: 7)",
+        help="watering interval in days (default: 7, or the care profile's)",
+    )
+    p_add.add_argument(
+        "--profile",
+        default="",
+        metavar="NAME",
+        help="care profile to start from (see: gardenlog profiles)",
     )
     p_add.add_argument(
         "--feed-interval",
@@ -502,6 +540,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_stats = sub.add_parser("stats", help="summary counts and the most overdue plant")
     p_stats.set_defaults(func=cmd_stats)
+
+    p_profiles = sub.add_parser("profiles", help="list the available care profiles")
+    p_profiles.set_defaults(func=cmd_profiles)
 
     return parser
 
