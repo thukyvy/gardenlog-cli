@@ -237,7 +237,7 @@ class TestCommands(GardenLogTestCase):
         self.assertEqual(code, 0)
         self.assertIn("Exported 1 plant(s)", out)
         text = target.read_text(encoding="utf-8")
-        self.assertIn("name,species,planted", text)
+        self.assertIn("name,species,zone,planted", text)
         self.assertIn("Fern", text)
 
     def test_export_empty_garden_emits_header_only(self):
