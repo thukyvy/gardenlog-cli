@@ -72,6 +72,19 @@ Backfill a watering you forgot to log with `--date`:
 $ gardenlog water Basil --date 2026-10-31
 ```
 
+### Keep a note on a plant
+
+```
+$ gardenlog note Monstera "moved to the balcony"
+Note saved for Monstera: moved to the balcony
+
+$ gardenlog note Monstera
+Monstera note: moved to the balcony
+```
+
+Notes appear under the plant in `gardenlog list`; remove one with
+`gardenlog note <name> --clear`.
+
 ### Remove a plant and see the summary
 
 ```bash

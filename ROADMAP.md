@@ -5,8 +5,6 @@ roughly in the order they are likely to land — not promises with dates.
 
 ## Next
 
-- **Per-plant notes** — a free-text note per plant (`gardenlog note <name> "…"`)
-  for things like "moved to the balcony" or "new leaf unfurled".
 - **CSV export** — `gardenlog export` writes plants and watering history to
   CSV for spreadsheets and backups.
 - **Fertiliser schedule** — track feeding separately from watering, with its

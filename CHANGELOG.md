@@ -4,6 +4,16 @@ All notable changes to GardenLog are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and GardenLog
 uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `gardenlog note` — a free-text note per plant: set with
+  `gardenlog note <name> "..."`, view with `gardenlog note <name>`, remove
+  with `--clear`. Notes are shown indented under the plant in `gardenlog
+  list`. Data files written before this feature (plants without a `note`
+  field) keep working unchanged.
+
 ## [0.1.0] - 2026-11-02
 
 ### Added
