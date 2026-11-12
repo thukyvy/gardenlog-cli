@@ -59,6 +59,24 @@ Plants needing water as of 2026-11-02:
 - Basil: last watered 2026-10-30, was due 2026-11-02 (due today)
 ```
 
+### Rain-aware due list (opt-in, still offline)
+
+GardenLog never fetches weather itself. If you keep a small JSON forecast
+file — written by hand or by your own script — `due` can flag waterings
+that rain would cover anyway:
+
+```
+$ cat forecast.json
+{"2026-11-12": {"rain": true}, "2026-11-13": {"rain_chance": 10}}
+
+$ gardenlog due --forecast forecast.json
+Plants needing water as of 2026-11-12:
+- Fern: last watered 2026-11-05, was due 2026-11-12 (due today) (rain expected today — consider delaying to 2026-11-13 if outdoors)
+```
+
+A day counts as rainy with `"rain": true` or `"rain_chance"` of 50 or
+more. The schedule itself never changes — the flag is advisory only.
+
 ### Record a watering
 
 ```bash

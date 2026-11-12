@@ -3,11 +3,11 @@
 Where GardenLog is heading after v0.1.0. These are real planned features,
 roughly in the order they are likely to land — not promises with dates.
 
-## Next
+## Status
 
-- **Weather-aware reminders** — optionally skip or delay a due watering when
-  rain is forecast for outdoor plants (requires an opt-in weather source;
-  GardenLog stays offline by default).
+Every feature planned on this roadmap has shipped (v0.2.0): per-plant
+notes, CSV export, fertiliser schedules, zones, care profiles, and the
+opt-in rain-aware due list. New ideas will be added here as they come up.
 
 ## Principles
 

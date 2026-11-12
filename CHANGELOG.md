@@ -4,10 +4,14 @@ All notable changes to GardenLog are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and GardenLog
 uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-12
 
 ### Added
 
+- Rain-aware due list — `gardenlog due --forecast forecast.json` flags due
+  waterings when rain is expected today and suggests the first dry day.
+  The forecast is a local JSON file the user supplies (per-day `"rain"` or
+  `"rain_chance"`); GardenLog stays offline and the schedule never changes.
 - Care profiles — `gardenlog add --profile fern|succulent|herb` starts a
   plant from preset watering/feeding intervals (explicit `--interval` /
   `--feed-interval` flags always win); `gardenlog profiles` lists the
