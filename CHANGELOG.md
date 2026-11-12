@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `gardenlog export` — plants and watering history as CSV (header row plus
+  one row per plant: identity, interval, note, watering count, last/next
+  dates, and the full watering history joined by `;`). Writes to standard
+  output, or to a file with `--output PATH`.
 - `gardenlog note` — a free-text note per plant: set with
   `gardenlog note <name> "..."`, view with `gardenlog note <name>`, remove
   with `--clear`. Notes are shown indented under the plant in `gardenlog

@@ -97,6 +97,18 @@ Waterings logged: 1
 Most overdue: Monstera (2 day(s) past due)
 ```
 
+### Export to CSV
+
+```
+$ gardenlog export --output plants.csv
+Exported 2 plant(s) to plants.csv.
+```
+
+One row per plant — name, species, planted date, interval, note, watering
+count, last-watered and next-due dates, plus the full watering history
+joined by `;` — ready for spreadsheets and backups. Without `--output`,
+the CSV goes to standard output.
+
 ## Data format
 
 Everything lives in one JSON file — `~/.gardenlog.json` by default, or the

@@ -5,8 +5,6 @@ roughly in the order they are likely to land — not promises with dates.
 
 ## Next
 
-- **CSV export** — `gardenlog export` writes plants and watering history to
-  CSV for spreadsheets and backups.
 - **Fertiliser schedule** — track feeding separately from watering, with its
   own interval per plant and entries in `due`.
 
