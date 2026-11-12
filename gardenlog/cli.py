@@ -24,19 +24,29 @@ def _parse_day(value: str | None, today: date) -> date:
 def cmd_add(args: argparse.Namespace, today: date) -> int:
     if args.interval < 1:
         return _err("watering interval must be at least 1 day")
+    if args.feed_interval is not None and args.feed_interval < 1:
+        return _err("fertiliser interval must be at least 1 day")
     data = store.load_data()
     if store.find_plant(data, args.name):
         return _err(f"a plant named '{args.name}' is already tracked")
     planted = _parse_day(args.planted, today)
-    plant = store.make_plant(args.name, args.species, planted, args.interval)
+    plant = store.make_plant(
+        args.name, args.species, planted, args.interval, args.feed_interval
+    )
     data["plants"].append(plant)
     store.save_data(data)
     species = f" ({plant['species']})" if plant["species"] else ""
-    print(
+    message = (
         f"Added {plant['name']}{species}: planted {plant['planted']}, "
         f"water every {plant['interval_days']} day(s), "
         f"first due {store.next_due(plant).isoformat()}."
     )
+    if store.feed_interval(plant) is not None:
+        message += (
+            f" Feed every {store.feed_interval(plant)} day(s), "
+            f"first feed due {store.next_feed_due(plant).isoformat()}."
+        )
+    print(message)
     return 0
 
 
@@ -69,18 +79,88 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
 def cmd_due(args: argparse.Namespace, today: date) -> int:
     data = store.load_data()
     due_plants = [p for p in data["plants"] if store.is_due(p, today)]
-    if not due_plants:
-        print(f"Nothing due as of {today.isoformat()}. All plants are watered.")
+    feed_plants = [p for p in data["plants"] if store.is_feed_due(p, today)]
+    if not due_plants and not feed_plants:
+        print(f"Nothing due as of {today.isoformat()}. All plants are on schedule.")
         return 0
-    due_plants.sort(key=lambda p: store.days_overdue(p, today), reverse=True)
-    print(f"Plants needing water as of {today.isoformat()}:")
-    for plant in due_plants:
-        overdue = store.days_overdue(plant, today)
-        when = "due today" if overdue == 0 else f"{overdue} day(s) overdue"
-        print(
-            f"- {plant['name']}: last watered {store.last_watered(plant).isoformat()}, "
-            f"was due {store.next_due(plant).isoformat()} ({when})"
+    if due_plants:
+        due_plants.sort(key=lambda p: store.days_overdue(p, today), reverse=True)
+        print(f"Plants needing water as of {today.isoformat()}:")
+        for plant in due_plants:
+            overdue = store.days_overdue(plant, today)
+            when = "due today" if overdue == 0 else f"{overdue} day(s) overdue"
+            print(
+                f"- {plant['name']}: last watered {store.last_watered(plant).isoformat()}, "
+                f"was due {store.next_due(plant).isoformat()} ({when})"
+            )
+    if feed_plants:
+        feed_plants.sort(
+            key=lambda p: store.feed_days_overdue(p, today), reverse=True
         )
+        print(f"Plants needing fertiliser as of {today.isoformat()}:")
+        for plant in feed_plants:
+            overdue = store.feed_days_overdue(plant, today)
+            when = "due today" if overdue == 0 else f"{overdue} day(s) overdue"
+            print(
+                f"- {plant['name']}: last fed {store.last_fed(plant).isoformat()}, "
+                f"was due {store.next_feed_due(plant).isoformat()} ({when})"
+            )
+    return 0
+
+
+def cmd_feed(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    plant = store.find_plant(data, args.name)
+    if plant is None:
+        return _err(f"no plant named '{args.name}' is tracked")
+    if store.feed_interval(plant) is None:
+        return _err(
+            f"no fertiliser schedule for '{plant['name']}' — set one with: "
+            f"gardenlog schedule-feed {plant['name']} --every 30"
+        )
+    day = _parse_day(args.date, today)
+    feedings = store.feedings_of(plant)
+    if day.isoformat() not in feedings:
+        feedings.append(day.isoformat())
+        feedings.sort()
+    plant["feedings"] = feedings
+    store.save_data(data)
+    print(
+        f"Fed {plant['name']} on {day.isoformat()}. "
+        f"Next feed due {store.next_feed_due(plant).isoformat()}."
+    )
+    return 0
+
+
+def cmd_schedule_feed(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    plant = store.find_plant(data, args.name)
+    if plant is None:
+        return _err(f"no plant named '{args.name}' is tracked")
+    if args.off:
+        plant["feed_interval_days"] = None
+        store.save_data(data)
+        print(f"Fertiliser schedule for {plant['name']} turned off.")
+        return 0
+    if args.every is None:
+        interval = store.feed_interval(plant)
+        if interval is None:
+            print(f"No fertiliser schedule for {plant['name']}.")
+        else:
+            print(
+                f"{plant['name']}: feed every {interval} day(s), "
+                f"next feed due {store.next_feed_due(plant).isoformat()}."
+            )
+        return 0
+    if args.every < 1:
+        return _err("fertiliser interval must be at least 1 day")
+    plant["feed_interval_days"] = args.every
+    plant.setdefault("feedings", [])
+    store.save_data(data)
+    print(
+        f"Fertiliser schedule for {plant['name']}: every {args.every} day(s), "
+        f"next feed due {store.next_feed_due(plant).isoformat()}."
+    )
     return 0
 
 
@@ -140,12 +220,20 @@ EXPORT_FIELDS = [
     "last_watered",
     "next_due",
     "waterings",
+    "feed_interval_days",
+    "feedings_count",
+    "last_fed",
+    "next_feed_due",
+    "feedings",
 ]
 
 
 def _export_rows(data: dict) -> list[dict]:
     rows = []
     for plant in sorted(data["plants"], key=lambda p: p["name"].lower()):
+        feedings = sorted(store.feedings_of(plant))
+        interval = store.feed_interval(plant)
+        next_feed = store.next_feed_due(plant)
         rows.append(
             {
                 "name": plant["name"],
@@ -157,6 +245,15 @@ def _export_rows(data: dict) -> list[dict]:
                 "last_watered": store.last_watered(plant).isoformat(),
                 "next_due": store.next_due(plant).isoformat(),
                 "waterings": ";".join(sorted(plant["waterings"])),
+                "feed_interval_days": interval if interval is not None else "",
+                "feedings_count": len(feedings),
+                "last_fed": (
+                    store.last_fed(plant).isoformat()
+                    if (feedings or interval is not None)
+                    else ""
+                ),
+                "next_feed_due": next_feed.isoformat() if next_feed else "",
+                "feedings": ";".join(feedings),
             }
         )
     return rows
@@ -197,8 +294,10 @@ def cmd_stats(args: argparse.Namespace, today: date) -> int:
     data = store.load_data()
     plants = data["plants"]
     total_waterings = sum(len(p["waterings"]) for p in plants)
+    total_feedings = sum(len(store.feedings_of(p)) for p in plants)
     print(f"Plants tracked: {len(plants)}")
     print(f"Waterings logged: {total_waterings}")
+    print(f"Feedings logged: {total_feedings}")
     overdue = [(store.days_overdue(p, today), p) for p in plants]
     overdue = [(days, p) for days, p in overdue if days > 0]
     if overdue:
@@ -231,6 +330,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DAYS",
         help="watering interval in days (default: 7)",
     )
+    p_add.add_argument(
+        "--feed-interval",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="fertiliser interval in days (default: feeding not tracked)",
+    )
     p_add.set_defaults(func=cmd_add)
 
     p_list = sub.add_parser("list", help="list all tracked plants")
@@ -238,6 +344,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_due = sub.add_parser("due", help="show plants due or overdue for watering")
     p_due.set_defaults(func=cmd_due)
+
+    p_feed = sub.add_parser("feed", help="record a feeding for a plant")
+    p_feed.add_argument("name", help="name of the plant you fed")
+    p_feed.add_argument(
+        "--date",
+        metavar="YYYY-MM-DD",
+        help="feeding date (default: today)",
+    )
+    p_feed.set_defaults(func=cmd_feed)
+
+    p_schedule_feed = sub.add_parser(
+        "schedule-feed", help="view, set or disable a plant's fertiliser schedule"
+    )
+    p_schedule_feed.add_argument("name", help="name of the plant")
+    p_schedule_feed.add_argument(
+        "--every",
+        type=int,
+        default=None,
+        metavar="DAYS",
+        help="feed every DAYS days",
+    )
+    p_schedule_feed.add_argument(
+        "--off",
+        action="store_true",
+        help="stop tracking feeding for this plant",
+    )
+    p_schedule_feed.set_defaults(func=cmd_schedule_feed)
 
     p_water = sub.add_parser("water", help="record a watering for a plant")
     p_water.add_argument("name", help="name of the plant you watered")

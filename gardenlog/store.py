@@ -70,7 +70,13 @@ def find_plant(data: dict, name: str) -> dict | None:
     return None
 
 
-def make_plant(name: str, species: str | None, planted: date, interval_days: int) -> dict:
+def make_plant(
+    name: str,
+    species: str | None,
+    planted: date,
+    interval_days: int,
+    feed_interval_days: int | None = None,
+) -> dict:
     return {
         "name": name,
         "species": species or "",
@@ -78,6 +84,8 @@ def make_plant(name: str, species: str | None, planted: date, interval_days: int
         "interval_days": interval_days,
         "waterings": [],
         "note": "",
+        "feed_interval_days": feed_interval_days,
+        "feedings": [],
     }
 
 
@@ -109,3 +117,43 @@ def days_overdue(plant: dict, today: date) -> int:
 
 def is_due(plant: dict, today: date) -> bool:
     return days_overdue(plant, today) >= 0
+
+
+def feed_interval(plant: dict) -> int | None:
+    """Fertiliser interval in days, or None when feeding is not tracked."""
+    value = plant.get("feed_interval_days")
+    return int(value) if value else None
+
+
+def feedings_of(plant: dict) -> list:
+    """Feeding dates recorded for the plant ([] for older data files)."""
+    return plant.get("feedings", [])
+
+
+def last_fed(plant: dict) -> date:
+    """Most recent feeding date, falling back to the planted date."""
+    feedings = feedings_of(plant)
+    if feedings:
+        return max(parse_date(day) for day in feedings)
+    return parse_date(plant["planted"])
+
+
+def next_feed_due(plant: dict) -> date | None:
+    """The date the plant next needs fertiliser (None when not tracked)."""
+    interval = feed_interval(plant)
+    if interval is None:
+        return None
+    return last_fed(plant) + timedelta(days=interval)
+
+
+def feed_days_overdue(plant: dict, today: date) -> int | None:
+    """Days past the feed due date (None when feeding is not tracked)."""
+    due = next_feed_due(plant)
+    if due is None:
+        return None
+    return (today - due).days
+
+
+def is_feed_due(plant: dict, today: date) -> bool:
+    overdue = feed_days_overdue(plant, today)
+    return overdue is not None and overdue >= 0
