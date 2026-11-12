@@ -4,6 +4,7 @@ Deterministic: every test injects a fixed `today` and points
 $GARDENLOG_DATA at a fresh temporary file.
 """
 
+import csv
 import io
 import os
 import tempfile
@@ -177,6 +178,41 @@ class TestCommands(GardenLogTestCase):
         code, _, err = self.run_cli(["note", "Fern", "   "])
         self.assertEqual(code, 1)
         self.assertIn("--clear", err)
+
+    def test_export_writes_expected_csv_rows(self):
+        self.add_fern()
+        self.run_cli(["water", "Fern", "--date", "2026-10-25"])
+        self.run_cli(["note", "Fern", "likes shade, apparently"])
+        code, out, _ = self.run_cli(["export"])
+        self.assertEqual(code, 0)
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(rows[0], cli.EXPORT_FIELDS)
+        self.assertEqual(len(rows), 2)
+        row = dict(zip(rows[0], rows[1]))
+        self.assertEqual(row["name"], "Fern")
+        self.assertEqual(row["planted"], "2026-10-20")
+        self.assertEqual(row["interval_days"], "7")
+        self.assertEqual(row["note"], "likes shade, apparently")
+        self.assertEqual(row["waterings_count"], "1")
+        self.assertEqual(row["last_watered"], "2026-10-25")
+        self.assertEqual(row["next_due"], "2026-11-01")
+        self.assertEqual(row["waterings"], "2026-10-25")
+
+    def test_export_to_file(self):
+        self.add_fern()
+        target = Path(self._tmp.name) / "out" / "plants.csv"
+        code, out, _ = self.run_cli(["export", "--output", str(target)])
+        self.assertEqual(code, 0)
+        self.assertIn("Exported 1 plant(s)", out)
+        text = target.read_text(encoding="utf-8")
+        self.assertIn("name,species,planted", text)
+        self.assertIn("Fern", text)
+
+    def test_export_empty_garden_emits_header_only(self):
+        code, out, _ = self.run_cli(["export"])
+        self.assertEqual(code, 0)
+        rows = list(csv.reader(io.StringIO(out)))
+        self.assertEqual(rows, [cli.EXPORT_FIELDS])
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
