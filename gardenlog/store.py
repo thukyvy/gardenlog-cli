@@ -9,7 +9,8 @@ Data lives in a single JSON document:
           "species": "Monstera deliciosa",
           "planted": "2026-10-01",
           "interval_days": 7,
-          "waterings": ["2026-10-03", "2026-10-10"]
+          "waterings": ["2026-10-03", "2026-10-10"],
+          "note": "moved to the balcony"
         }
       ]
     }
@@ -76,7 +77,13 @@ def make_plant(name: str, species: str | None, planted: date, interval_days: int
         "planted": planted.isoformat(),
         "interval_days": interval_days,
         "waterings": [],
+        "note": "",
     }
+
+
+def plant_note(plant: dict) -> str:
+    """The plant's free-text note ('' when unset or from an older data file)."""
+    return plant.get("note", "") or ""
 
 
 def parse_date(value: str) -> date:

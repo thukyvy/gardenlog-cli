@@ -57,6 +57,9 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
             f"{store.last_watered(plant).isoformat():<13} "
             f"{store.next_due(plant).isoformat():<11} {status}"
         )
+        note = store.plant_note(plant)
+        if note:
+            print(f"    note: {note}")
     return 0
 
 
@@ -92,6 +95,35 @@ def cmd_water(args: argparse.Namespace, today: date) -> int:
         f"Watered {plant['name']} on {day.isoformat()}. "
         f"Next due {store.next_due(plant).isoformat()}."
     )
+    return 0
+
+
+def cmd_note(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    plant = store.find_plant(data, args.name)
+    if plant is None:
+        return _err(f"no plant named '{args.name}' is tracked")
+    if args.clear:
+        plant["note"] = ""
+        store.save_data(data)
+        print(f"Cleared the note for {plant['name']}.")
+        return 0
+    if args.text is None:
+        note = store.plant_note(plant)
+        if note:
+            print(f"{plant['name']} note: {note}")
+        else:
+            print(
+                f"{plant['name']} has no note. "
+                f'Add one with: gardenlog note {plant["name"]} "..."'
+            )
+        return 0
+    text = args.text.strip()
+    if not text:
+        return _err("note text is empty — use --clear to remove a note")
+    plant["note"] = text
+    store.save_data(data)
+    print(f"Note saved for {plant['name']}: {text}")
     return 0
 
 
@@ -160,6 +192,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="watering date (default: today)",
     )
     p_water.set_defaults(func=cmd_water)
+
+    p_note = sub.add_parser("note", help="view or set a free-text note on a plant")
+    p_note.add_argument("name", help="name of the plant")
+    p_note.add_argument(
+        "text",
+        nargs="?",
+        default=None,
+        help="the note text (omit to view the current note)",
+    )
+    p_note.add_argument(
+        "--clear",
+        action="store_true",
+        help="remove the plant's note",
+    )
+    p_note.set_defaults(func=cmd_note)
 
     p_remove = sub.add_parser("remove", help="stop tracking a plant")
     p_remove.add_argument("name", help="name of the plant to remove")
