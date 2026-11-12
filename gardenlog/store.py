@@ -76,6 +76,7 @@ def make_plant(
     planted: date,
     interval_days: int,
     feed_interval_days: int | None = None,
+    zone: str = "",
 ) -> dict:
     return {
         "name": name,
@@ -86,7 +87,13 @@ def make_plant(
         "note": "",
         "feed_interval_days": feed_interval_days,
         "feedings": [],
+        "zone": zone or "",
     }
+
+
+def plant_zone(plant: dict) -> str:
+    """The plant's zone ('' when unset or from an older data file)."""
+    return plant.get("zone", "") or ""
 
 
 def plant_note(plant: dict) -> str:

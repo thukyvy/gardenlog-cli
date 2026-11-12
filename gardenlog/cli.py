@@ -31,7 +31,12 @@ def cmd_add(args: argparse.Namespace, today: date) -> int:
         return _err(f"a plant named '{args.name}' is already tracked")
     planted = _parse_day(args.planted, today)
     plant = store.make_plant(
-        args.name, args.species, planted, args.interval, args.feed_interval
+        args.name,
+        args.species,
+        planted,
+        args.interval,
+        args.feed_interval,
+        args.zone.strip(),
     )
     data["plants"].append(plant)
     store.save_data(data)
@@ -46,8 +51,16 @@ def cmd_add(args: argparse.Namespace, today: date) -> int:
             f" Feed every {store.feed_interval(plant)} day(s), "
             f"first feed due {store.next_feed_due(plant).isoformat()}."
         )
+    if store.plant_zone(plant):
+        message += f" Zone: {store.plant_zone(plant)}."
     print(message)
     return 0
+
+
+def _filter_zone(plants: list, zone: str | None) -> list:
+    if zone is None:
+        return plants
+    return [p for p in plants if store.plant_zone(p).lower() == zone.lower()]
 
 
 def cmd_list(args: argparse.Namespace, today: date) -> int:
@@ -55,9 +68,13 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
     if not data["plants"]:
         print("No plants tracked yet. Add one with: gardenlog add <name>")
         return 0
+    plants = _filter_zone(data["plants"], args.zone)
+    if not plants:
+        print(f"No plants in zone '{args.zone}'.")
+        return 0
     print(f"{'Name':<20} {'Species':<24} {'Last watered':<13} {'Next due':<11} Status")
     print("-" * 78)
-    for plant in sorted(data["plants"], key=lambda p: p["name"].lower()):
+    for plant in sorted(plants, key=lambda p: p["name"].lower()):
         overdue = store.days_overdue(plant, today)
         if overdue > 0:
             status = f"OVERDUE by {overdue}d"
@@ -70,6 +87,9 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
             f"{store.last_watered(plant).isoformat():<13} "
             f"{store.next_due(plant).isoformat():<11} {status}"
         )
+        zone = store.plant_zone(plant)
+        if zone:
+            print(f"    zone: {zone}")
         note = store.plant_note(plant)
         if note:
             print(f"    note: {note}")
@@ -78,10 +98,14 @@ def cmd_list(args: argparse.Namespace, today: date) -> int:
 
 def cmd_due(args: argparse.Namespace, today: date) -> int:
     data = store.load_data()
-    due_plants = [p for p in data["plants"] if store.is_due(p, today)]
-    feed_plants = [p for p in data["plants"] if store.is_feed_due(p, today)]
+    plants = _filter_zone(data["plants"], args.zone)
+    due_plants = [p for p in plants if store.is_due(p, today)]
+    feed_plants = [p for p in plants if store.is_feed_due(p, today)]
     if not due_plants and not feed_plants:
-        print(f"Nothing due as of {today.isoformat()}. All plants are on schedule.")
+        if args.zone is not None:
+            print(f"Nothing due as of {today.isoformat()} in zone '{args.zone}'.")
+        else:
+            print(f"Nothing due as of {today.isoformat()}. All plants are on schedule.")
         return 0
     if due_plants:
         due_plants.sort(key=lambda p: store.days_overdue(p, today), reverse=True)
@@ -213,6 +237,7 @@ def cmd_note(args: argparse.Namespace, today: date) -> int:
 EXPORT_FIELDS = [
     "name",
     "species",
+    "zone",
     "planted",
     "interval_days",
     "note",
@@ -238,6 +263,7 @@ def _export_rows(data: dict) -> list[dict]:
             {
                 "name": plant["name"],
                 "species": plant["species"],
+                "zone": store.plant_zone(plant),
                 "planted": plant["planted"],
                 "interval_days": plant["interval_days"],
                 "note": store.plant_note(plant),
@@ -276,6 +302,35 @@ def cmd_export(args: argparse.Namespace, today: date) -> int:
     writer.writeheader()
     writer.writerows(rows)
     sys.stdout.write(buffer.getvalue())
+    return 0
+
+
+def cmd_zone(args: argparse.Namespace, today: date) -> int:
+    data = store.load_data()
+    plant = store.find_plant(data, args.name)
+    if plant is None:
+        return _err(f"no plant named '{args.name}' is tracked")
+    if args.clear:
+        plant["zone"] = ""
+        store.save_data(data)
+        print(f"Cleared the zone for {plant['name']}.")
+        return 0
+    if args.text is None:
+        zone = store.plant_zone(plant)
+        if zone:
+            print(f"{plant['name']} zone: {zone}")
+        else:
+            print(
+                f"{plant['name']} has no zone. "
+                f'Set one with: gardenlog zone {plant["name"]} "balcony"'
+            )
+        return 0
+    text = args.text.strip()
+    if not text:
+        return _err("zone name is empty — use --clear to remove a zone")
+    plant["zone"] = text
+    store.save_data(data)
+    print(f"Zone for {plant['name']} set to: {text}")
     return 0
 
 
@@ -337,12 +392,30 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DAYS",
         help="fertiliser interval in days (default: feeding not tracked)",
     )
+    p_add.add_argument(
+        "--zone",
+        default="",
+        metavar="ZONE",
+        help="location group, e.g. balcony or kitchen (optional)",
+    )
     p_add.set_defaults(func=cmd_add)
 
     p_list = sub.add_parser("list", help="list all tracked plants")
+    p_list.add_argument(
+        "--zone",
+        default=None,
+        metavar="ZONE",
+        help="only show plants in this zone",
+    )
     p_list.set_defaults(func=cmd_list)
 
     p_due = sub.add_parser("due", help="show plants due or overdue for watering")
+    p_due.add_argument(
+        "--zone",
+        default=None,
+        metavar="ZONE",
+        help="only show plants in this zone",
+    )
     p_due.set_defaults(func=cmd_due)
 
     p_feed = sub.add_parser("feed", help="record a feeding for a plant")
@@ -407,6 +480,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="write the CSV to this file (default: standard output)",
     )
     p_export.set_defaults(func=cmd_export)
+
+    p_zone = sub.add_parser("zone", help="view or set a plant's zone")
+    p_zone.add_argument("name", help="name of the plant")
+    p_zone.add_argument(
+        "text",
+        nargs="?",
+        default=None,
+        help="the zone name (omit to view the current zone)",
+    )
+    p_zone.add_argument(
+        "--clear",
+        action="store_true",
+        help="remove the plant's zone",
+    )
+    p_zone.set_defaults(func=cmd_zone)
 
     p_remove = sub.add_parser("remove", help="stop tracking a plant")
     p_remove.add_argument("name", help="name of the plant to remove")
