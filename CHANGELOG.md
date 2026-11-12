@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Care profiles — `gardenlog add --profile fern|succulent|herb` starts a
+  plant from preset watering/feeding intervals (explicit `--interval` /
+  `--feed-interval` flags always win); `gardenlog profiles` lists the
+  presets. The profile used is recorded on the plant and in the CSV export.
 - Zones — group plants by location (`gardenlog add --zone balcony`, or
   `gardenlog zone <name> "balcony"` / `--clear` afterwards) and filter
   `gardenlog list --zone …` and `gardenlog due --zone …` by zone

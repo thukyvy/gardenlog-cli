@@ -88,6 +88,21 @@ Plants that already exist get a schedule with
 `gardenlog schedule-feed <name> --every 30` (and `--off` removes it).
 Due feedings show up in `gardenlog due` next to due waterings.
 
+### Start from a care profile
+
+```
+$ gardenlog profiles
+Available care profiles (starting defaults, all overridable):
+- fern: water every 3 day(s), feed every 30 day(s)
+- herb: water every 2 day(s), feed every 14 day(s)
+- succulent: water every 14 day(s), feed every 60 day(s)
+
+$ gardenlog add Basil --profile herb
+```
+
+Profiles are only starting points: `--interval` and `--feed-interval`
+override the profile's values, and schedules can be changed at any time.
+
 ### Group plants into zones
 
 ```
@@ -156,7 +171,8 @@ human-readable JSON, so you can inspect or back it up with any tool:
       "note": "",
       "feed_interval_days": null,
       "feedings": [],
-      "zone": ""
+      "zone": "",
+      "profile": ""
     }
   ]
 }
