@@ -88,6 +88,19 @@ Plants that already exist get a schedule with
 `gardenlog schedule-feed <name> --every 30` (and `--off` removes it).
 Due feedings show up in `gardenlog due` next to due waterings.
 
+### Group plants into zones
+
+```
+$ gardenlog add Fern --zone balcony
+$ gardenlog list --zone balcony
+$ gardenlog due --zone balcony
+```
+
+A zone is just a location label (balcony, kitchen, greenhouse…). Set it
+when adding a plant, or later with `gardenlog zone <name> "balcony"`
+(`--clear` removes it). `list` and `due` filter by zone
+case-insensitively.
+
 ### Keep a note on a plant
 
 ```
@@ -142,7 +155,8 @@ human-readable JSON, so you can inspect or back it up with any tool:
       "waterings": ["2026-10-31"],
       "note": "",
       "feed_interval_days": null,
-      "feedings": []
+      "feedings": [],
+      "zone": ""
     }
   ]
 }

@@ -8,6 +8,10 @@ uses [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Zones — group plants by location (`gardenlog add --zone balcony`, or
+  `gardenlog zone <name> "balcony"` / `--clear` afterwards) and filter
+  `gardenlog list --zone …` and `gardenlog due --zone …` by zone
+  (case-insensitive). Zones are included in the CSV export.
 - Fertiliser schedules — feeding tracked separately from watering, with its
   own interval per plant: opt in with `gardenlog add --feed-interval DAYS`
   or later via `gardenlog schedule-feed <name> --every DAYS` (`--off`

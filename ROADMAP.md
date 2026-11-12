@@ -5,8 +5,6 @@ roughly in the order they are likely to land — not promises with dates.
 
 ## Next
 
-- **Zones** — group plants by location (balcony, kitchen, greenhouse) and
-  filter `list` / `due` by zone.
 - **Care profiles** — reusable presets ("succulent", "fern", "herb") that set
   sensible default intervals when adding a plant.
 
