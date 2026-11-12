@@ -96,6 +96,14 @@ class TestScheduleLogic(GardenLogTestCase):
         self.assertIsNone(store.feed_interval(legacy))
         self.assertEqual(store.feedings_of(legacy), [])
 
+    def test_zone_defaults_empty_and_legacy_data_is_fine(self):
+        plant = store.make_plant("Fern", "", date(2026, 10, 20), 7, zone="balcony")
+        self.assertEqual(store.plant_zone(plant), "balcony")
+        plain = store.make_plant("Fern", "", date(2026, 10, 20), 7)
+        self.assertEqual(store.plant_zone(plain), "")
+        legacy = {"name": "Old", "planted": "2026-10-01", "waterings": []}
+        self.assertEqual(store.plant_zone(legacy), "")
+
     def test_watering_moves_due_date(self):
         plant = store.make_plant("Fern", "", date(2026, 10, 20), 7)
         plant["waterings"].append("2026-10-30")
@@ -302,6 +310,52 @@ class TestCommands(GardenLogTestCase):
         self.assertEqual(row["last_fed"], "2026-10-28")
         self.assertEqual(row["next_feed_due"], "2026-11-11")
         self.assertEqual(row["feedings"], "2026-10-28")
+
+    def test_zone_set_show_and_clear(self):
+        self.add_fern()
+        code, out, _ = self.run_cli(["zone", "Fern"])
+        self.assertEqual(code, 0)
+        self.assertIn("has no zone", out)
+        code, out, _ = self.run_cli(["zone", "Fern", "balcony"])
+        self.assertEqual(code, 0)
+        self.assertIn("Zone for Fern set to: balcony", out)
+        code, out, _ = self.run_cli(["list"])
+        self.assertEqual(code, 0)
+        self.assertIn("zone: balcony", out)
+        code, _, _ = self.run_cli(["zone", "Fern", "--clear"])
+        self.assertEqual(code, 0)
+        plant = store.find_plant(store.load_data(), "Fern")
+        self.assertEqual(store.plant_zone(plant), "")
+        code, _, err = self.run_cli(["zone", "Ghost", "balcony"])
+        self.assertEqual(code, 1)
+        self.assertIn("no plant named 'Ghost'", err)
+
+    def test_list_and_due_filter_by_zone(self):
+        self.run_cli(["add", "Fern", "--planted", "2026-10-20", "--zone", "Balcony"])
+        self.run_cli(["add", "Cactus", "--planted", "2026-10-20", "--zone", "kitchen"])
+        code, out, _ = self.run_cli(["list", "--zone", "balcony"])
+        self.assertEqual(code, 0)
+        self.assertIn("Fern", out)
+        self.assertNotIn("Cactus", out)
+        code, out, _ = self.run_cli(["list", "--zone", "greenhouse"])
+        self.assertEqual(code, 0)
+        self.assertIn("No plants in zone 'greenhouse'", out)
+        code, out, _ = self.run_cli(["due", "--zone", "kitchen"])
+        self.assertEqual(code, 0)
+        self.assertIn("Cactus", out)
+        self.assertNotIn("Fern", out)
+        code, out, _ = self.run_cli(["due", "--zone", "nowhere"])
+        self.assertEqual(code, 0)
+        self.assertIn("Nothing due", out)
+        self.assertIn("nowhere", out)
+
+    def test_export_includes_zone(self):
+        self.run_cli(["add", "Fern", "--planted", "2026-10-20", "--zone", "balcony"])
+        code, out, _ = self.run_cli(["export"])
+        self.assertEqual(code, 0)
+        rows = list(csv.reader(io.StringIO(out)))
+        row = dict(zip(rows[0], rows[1]))
+        self.assertEqual(row["zone"], "balcony")
 
     def test_data_roundtrip_through_json_file(self):
         self.add_fern()
